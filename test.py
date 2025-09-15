@@ -1,54 +1,49 @@
 from .. import loader, utils
-import asyncio
+from asyncio import sleep
 
-@loader.tds
+
+def register(cb):
+    cb(AutoSenderMod())
+
+
 class AutoSenderMod(loader.Module):
-    """Автоотправка текста в чат каждые 3.5 секунды"""
+    """Автоотправка текста в чат каждые 3.5 сек"""
+
     strings = {"name": "AutoSender"}
 
-    def init(self):
-        self.db = {}   # чтобы не было ошибки
+    def __init__(self):
         self._running = False
+        self._chat_id = None
+        self._text = None
 
-    @loader.command()
-    async def getid(self, message):
-        """Получить ID текущего чата"""
-        await message.edit(f"ID этого чата: {message.chat_id}")
+    async def getidcmd(self, message):
+        """Показать ID текущего чата"""
+        await message.edit(f"ID этого чата: `{message.chat_id}`")
 
-    @loader.command()
-    async def setid(self, message):
-        """Установить ID чата: .setid <id>"""
+    async def setidcmd(self, message):
+        """Установить ID чата (.setid <id> или без аргументов — текущий чат)"""
         args = utils.get_args_raw(message)
-        if not args:
-            # Если аргументов нет — берем id текущего чата
-            chat_id = message.chat_id
+        if args:
+            self._chat_id = int(args)
         else:
-            chat_id = int(args)
+            self._chat_id = message.chat_id
+        await message.edit(f"ID чата установлен: `{self._chat_id}`")
 
-        self.set("chat_id", chat_id)
-        await message.edit(f"ID чата установлен: {chat_id}")
-
-    @loader.command()
-    async def settext(self, message):
-        """Установить текст: .settext <текст>"""
+    async def settextcmd(self, message):
+        """Установить текст (.settext <текст>)"""
         args = utils.get_args_raw(message)
         if not args:
             return await message.edit("Укажи текст")
-        self.set("text", args)
-        await message.edit(f"Текст установлен: {args}")
+        self._text = args
+        await message.edit(f"Текст установлен: {self._text}")
 
-    @loader.command()
-    async def startspam(self, message):
-        """Запустить рассылку"""
+    async def startspamcmd(self, message):
+        """Запустить автоотправку"""
         if self._running:
             return await message.edit("Уже работает")
-
-        chat_id = self.get("chat_id", None)
-        text = self.get("text", None)
-
-        if not chat_id:
+        if not self._chat_id:
             return await message.edit("Сначала установи ID чата (.setid)")
-        if not text:
+        if not self._text:
             return await message.edit("Сначала установи текст (.settext)")
 
         await message.edit("Запускаю рассылку...")
@@ -56,17 +51,22 @@ class AutoSenderMod(loader.Module):
 
         try:
             while self._running:
-                await self.client.send_message(chat_id, text)
-                await asyncio.sleep(3.5)
+                await message.client.send_message(self._chat_id, self._text)
+                await sleep(3.5)
         except Exception as e:
             await message.respond(f"Ошибка: {e}")
         finally:
             self._running = False
 
-    @loader.command()
-    async def stopspam(self, message):
-        """Остановить рассылку"""
+    async def stopspamcmd(self, message):
+        """Остановить автоотправку"""
         if not self._running:
             return await message.edit("Не запущено")
         self._running = False
         await message.edit("Рассылка остановлена")
+
+    async def showspamcmd(self, message):
+        """Показать текущие настройки"""
+        chat_id = self._chat_id or "не задан"
+        text = self._text or "не задан"
+        await message.edit(f"📌 Чат: `{chat_id}`\n📌 Текст: {text}")

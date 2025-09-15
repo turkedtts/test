@@ -7,10 +7,7 @@ class AutoSenderMod(loader.Module):
     strings = {"name": "AutoSender"}
 
     def init(self):
-        self.config = loader.ModuleConfig(
-            "chat_id", None, "ID чата для отправки",
-            "text", "Привет!", "Текст для отправки"
-        )
+        self.db = {}   # чтобы не было ошибки
         self._running = False
 
     @loader.command()
@@ -20,20 +17,24 @@ class AutoSenderMod(loader.Module):
 
     @loader.command()
     async def setid(self, message):
-        """Установить ID чата для рассылки: .setid <id>"""
+        """Установить ID чата: .setid <id>"""
         args = utils.get_args_raw(message)
         if not args:
-            return await message.edit("Укажи ID чата")
-        self.config["chat_id"] = int(args)
-        await message.edit(f"ID чата установлен: {args}")
+            # Если аргументов нет — берем id текущего чата
+            chat_id = message.chat_id
+        else:
+            chat_id = int(args)
+
+        self.set("chat_id", chat_id)
+        await message.edit(f"ID чата установлен: {chat_id}")
 
     @loader.command()
     async def settext(self, message):
-        """Установить текст для рассылки: .settext <текст>"""
+        """Установить текст: .settext <текст>"""
         args = utils.get_args_raw(message)
         if not args:
             return await message.edit("Укажи текст")
-        self.config["text"] = args
+        self.set("text", args)
         await message.edit(f"Текст установлен: {args}")
 
     @loader.command()
@@ -41,13 +42,18 @@ class AutoSenderMod(loader.Module):
         """Запустить рассылку"""
         if self._running:
             return await message.edit("Уже работает")
-        chat_id = self.config["chat_id"]
+
+        chat_id = self.get("chat_id", None)
+        text = self.get("text", None)
+
         if not chat_id:
-            return await message.edit("Сначала установи ID чата")
-        text = self.config["text"]
+            return await message.edit("Сначала установи ID чата (.setid)")
+        if not text:
+            return await message.edit("Сначала установи текст (.settext)")
 
         await message.edit("Запускаю рассылку...")
         self._running = True
+
         try:
             while self._running:
                 await self.client.send_message(chat_id, text)
